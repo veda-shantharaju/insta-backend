@@ -9,7 +9,7 @@ import ast
 from django.http import Http404
 from rest_framework.permissions import IsAuthenticated
 from datetime import datetime
-
+from posts.filters import PostFilter
 
 
 class PostCreateAPIView(CreateAPIView):
@@ -47,6 +47,7 @@ class PostCreateAPIView(CreateAPIView):
 class PostListAPIView(ListAPIView):
     serializer_class = PostListSerializer
     permission_classes = [IsAuthenticated]
+    filterset_class = PostFilter
     def get_queryset(self):
         return (
             Post.objects.filter(
@@ -195,7 +196,7 @@ class CommentCreateView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         q=Comment.objects.create(
             post_id = request.data.get('post_id'),
-            user=self.request.user.id,
+            user_id=self.request.user.id,
             content = request.data.get('content')
         )
         return Response(
@@ -206,36 +207,108 @@ class CommentCreateView(generics.CreateAPIView):
 class CommentDeleteView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        q= Comment.objects.filter(user=self.request.user,id=request.data.get("comment_id"))
-        q.delete()
-        return Response(
-                {"detail": "deleted successfully."},
-                status=status.HTTP_202_ACCEPTED
-            )
+    def delete(self, request, *args, **kwargs):
+        comment_id = request.data.get("comment_id")
 
-class CommentEditView(generics.DestroyAPIView):
+        if not comment_id:
+            return Response({"detail": "comment_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            comment = Comment.objects.get(id=comment_id, user_id=self.request.user.id)
+            comment.delete()
+            return Response({"detail": "Comment deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        except Comment.DoesNotExist:
+            return Response({"detail": "Comment not found or you do not have permission to delete it."},
+                            status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class CommentEditView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        q= Comment.objects.filter(user=self.request.user,id=request.data.get("comment_id"))
-        q[0].content=request.data.get('content')
-        q[0].save()
-        return Response(
-                {"detail": "editted successfully."},
-                status=status.HTTP_202_ACCEPTED
+    def put(self, request, *args, **kwargs):
+        comment_id = request.data.get("comment_id")
+        content = request.data.get("content")
+
+        if not comment_id or not content:
+            return Response(
+                {"detail": "comment_id and content are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            comment = Comment.objects.get(id=comment_id, user_id=self.request.user.id)
+            comment.content = content
+            comment.save()
+            return Response(
+                {"detail": "Comment edited successfully."},
+                status=status.HTTP_200_OK
+            )
+        except Comment.DoesNotExist:
+            return Response(
+                {"detail": "Comment not found or you do not have permission to edit it."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
 class PostLikeView(generics.GenericAPIView):
-    serializer_class = PostLikeSerializer
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         post_id = request.data.get('post_id')
-        user = request.user
-        post = Post.objects.get(id=post_id)
-        post_like, created = PostLike.objects.get_or_create(post=post, user=user)
-        if not created:
-            post_like.delete()
-            return Response({"message": "Post unliked"}, status=status.HTTP_204_NO_CONTENT)
-        return Response({"message": "Post liked"}, status=status.HTTP_201_CREATED)
+
+        if not post_id:
+            return Response(
+                {"detail": "post_id is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            post = Post.objects.get(id=post_id)
+            user = request.user
+
+            # Check if the user has already liked the post
+            post_like, created = PostLike.objects.get_or_create(post=post, user=user)
+
+            if not created:
+                post_like.delete()
+                return Response({"message": "Post unliked"}, status=status.HTTP_204_NO_CONTENT)
+            
+            return Response({"message": "Post liked"}, status=status.HTTP_201_CREATED)
+
+        except Post.DoesNotExist:
+            return Response(
+                {"detail": "Post not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+class UnfollowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        to_user_id = request.data.get('to_user')
+
+        try:
+            to_user = CustomUser.objects.get(id=to_user_id)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        from_user = request.user
+
+        # Ensure from_user is following to_user before unfollowing
+        if not from_user.is_following(to_user):
+            return Response({"error": "You are not following this user."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Unfollow the user
+        from_user.unfollow(to_user)
+
+        return Response({"message": f"You have unfollowed {to_user.username}."}, status=status.HTTP_200_OK)

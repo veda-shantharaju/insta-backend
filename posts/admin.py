@@ -78,16 +78,7 @@ class PostLikeAdmin(admin.ModelAdmin):
         form = super().get_form(request, obj, **kwargs)
         form.base_fields["user"].initial = request.user
         return form
-    
-class UserFollowAdmin(admin.ModelAdmin):
-    search_fields = ["follower"]
-    list_display = [f.name for f in UserFollow._meta.fields]
-    # date_hierarchy = "created_at"
 
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        form.base_fields["follower"].initial = request.user
-        return form
     
 admin.site.register(Post,PostAdmin)
 admin.site.register(Video,VideoAdmin)
@@ -95,5 +86,4 @@ admin.site.register(Image,ImageAdmin)
 admin.site.register(SharedPost,SharedPostAdmin)
 admin.site.register(Comment,CommentAdmin)
 admin.site.register(PostLike,PostLikeAdmin)
-admin.site.register(UserFollow,UserFollowAdmin)
 admin.site.register(FollowRequest,FollowRequestAdmin)

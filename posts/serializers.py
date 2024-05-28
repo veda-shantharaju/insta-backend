@@ -3,117 +3,104 @@ from posts.models import *
 from users.serializers import CustomUserMiniSerializer
 
 class PostListSerializer(serializers.ModelSerializer):
+    user = CustomUserMiniSerializer()
 
-    user = serializers.SerializerMethodField()
-    def get_user(self, obj):
-        return CustomUserMiniSerializer(obj.user,context= self.context).data
-    
     videos = serializers.SerializerMethodField()
-    def get_videos(self, obj):
-        return VideoSerializer(obj.video_set.all(),many=True,context= self.context).data
-    
     images = serializers.SerializerMethodField()
+    like_count = serializers.SerializerMethodField()
+    liked_by = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+    comments = serializers.SerializerMethodField()
+    shared_count = serializers.SerializerMethodField()
+
+    def get_videos(self, obj):
+        videos = obj.video_set.all()
+        return VideoSerializer(videos, many=True, context=self.context).data
+
     def get_images(self, obj):
-        return ImageSerializer(obj.image_set.all(),many=True,context= self.context).data
+        images = obj.image_set.all()
+        return ImageSerializer(images, many=True, context=self.context).data
+
+    def get_like_count(self, obj):
+        return obj.postlike_set.count()
+
+    def get_liked_by(self, obj):
+        likes = obj.postlike_set.all()
+        return CustomUserMiniSerializer([like.user for like in likes], many=True).data
+
+    def get_comment_count(self, obj):
+        return obj.comments.count()
+
+    def get_comments(self, obj):
+        comments = obj.comments.all()
+        return CommentSerializer(comments, many=True).data
+
+    def get_shared_count(self, obj):
+        return obj.shared_posts.count()
+
     class Meta:
         model = Post
         fields = [
             'id',
-            'user', 
-            'title', 
+            'user',
+            'title',
             'description',
-            "created_at",
-            "updated_at",
-            "is_archived",
-            "videos",
-            "images"
-            ]
-        
-class VideoSerializer(serializers.ModelSerializer):
+            'created_at',
+            'updated_at',
+            'is_archived',
+            'videos',
+            'images',
+            'like_count',
+            'liked_by',
+            'comment_count',
+            'comments',
+            'shared_count'
+        ]
 
-    thumbnail1=serializers.SerializerMethodField()
+class VideoSerializer(serializers.ModelSerializer):
+    thumbnail1 = serializers.SerializerMethodField()
+
     def get_thumbnail1(self, obj):
-        if obj.video_file:
-            return self.context.get("request").build_absolute_uri(obj.thumbnail1)
-        
+        return obj.thumbnail1  # Assuming thumbnail1 is already a property in the Video model
+
     class Meta:
         model = Video
-        fields = ("id","post","video_file",'thumbnail1',"uploaded_at")
+        fields = ('id', 'video_file', 'thumbnail1', 'uploaded_at')
 
 class ImageSerializer(serializers.ModelSerializer):
+    thumbnail2 = serializers.SerializerMethodField()
 
-    thumbnail2=serializers.SerializerMethodField()
     def get_thumbnail2(self, obj):
-        if obj.image_file:
-            return self.context.get("request").build_absolute_uri(obj.thumbnail2)
-        
+        return obj.thumbnail2  # Assuming thumbnail2 is already a property in the Image model
+
     class Meta:
         model = Image
-        fields = ("id","post", "image_file","thumbnail2","uploaded_at")
+        fields = ('id', 'image_file', 'thumbnail2', 'uploaded_at')
 
-class SharedPostListSerializer(serializers.ModelSerializer):
-
-    post = serializers.SerializerMethodField()
-    def get_post(self, obj):
-        return PostListSerializer(obj.post,context= self.context).data
-    
-    shared_by = serializers.SerializerMethodField()
-    def get_shared_by(self, obj):
-        return CustomUserMiniSerializer(obj.shared_by,context= self.context).data
-    
-    shared_with = serializers.SerializerMethodField()
-    def get_shared_with(self, obj):
-        return CustomUserMiniSerializer(obj.shared_with,context= self.context).data
-    
-    class Meta:
-        model = SharedPost
-        fields = ("id", 
-                  "post",
-                  "shared_by",
-                  "shared_with",
-                  "shared_at")
-        
 class CommentSerializer(serializers.ModelSerializer):
+    user = CustomUserMiniSerializer()
 
-    post = serializers.SerializerMethodField()
-    def get_post(self, obj):
-        return PostListSerializer(obj.post,context= self.context).data
-    
-    user = serializers.SerializerMethodField()
-    def get_user(self, obj):
-        return CustomUserMiniSerializer(obj.user,context= self.context).data
-    
     class Meta:
         model = Comment
-        fields = ("id", "post","user","content","created_at","updated_at")
+        fields = ('id', 'user', 'content', 'created_at', 'updated_at')
+
+  # Add more fields as needed
 
 class PostLikeSerializer(serializers.ModelSerializer):
+    user = CustomUserMiniSerializer()
 
-    post = serializers.SerializerMethodField()
-    def get_post(self, obj):
-        return PostListSerializer(obj.post,context= self.context).data
-    
-    user = serializers.SerializerMethodField()
-    def get_user(self, obj):
-        return CustomUserMiniSerializer(obj.user,context= self.context).data
-    
     class Meta:
         model = PostLike
-        fields = ("id", "post","user")
+        fields = ('id', 'user')
 
-class UserFollowSerializer(serializers.ModelSerializer):
+class SharedPostListSerializer(serializers.ModelSerializer):
+    post = PostListSerializer()
+    shared_by = CustomUserMiniSerializer()
+    shared_with = CustomUserMiniSerializer(many=True)
 
-    follower = serializers.SerializerMethodField()
-    def get_follower(self, obj):
-        return CustomUserMiniSerializer(obj.follower,context= self.context).data
-    
-    following = serializers.SerializerMethodField()
-    def get_following(self, obj):
-        return CustomUserMiniSerializer(obj.following,context= self.context).data
-    
     class Meta:
-        model = UserFollow
-        fields = ("id", "follower","following")
+        model = SharedPost
+        fields = ('id', 'post', 'shared_by', 'shared_with', 'shared_at')
 
 class FollowRequestSerializer(serializers.ModelSerializer):
     from_user = serializers.ReadOnlyField(source='from_user.username')

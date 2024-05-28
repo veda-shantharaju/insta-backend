@@ -12,7 +12,7 @@ class CustomUser(AbstractUser):
     contact_number = PhoneNumberField(blank=True, null=True)
     profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
     followers = models.ManyToManyField('self', symmetrical=False, related_name='following', blank=True)
-    is_private = models.BooleanField(default=False,null=True, blank=True)
+    is_private = models.BooleanField(default=False, null=True, blank=True)
 
     @property
     def thumbnail3(self):
@@ -25,3 +25,9 @@ class CustomUser(AbstractUser):
 
     def is_following(self, user):
         return self.following.filter(pk=user.pk).exists()
+
+    def unfollow(self, user):
+        if self.is_following(user):
+            self.following.remove(user)
+            return True
+        return False

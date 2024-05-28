@@ -66,13 +66,6 @@ class PostLike(models.Model):
 
     class Meta:
         unique_together = (("post", "user"), )
-
-class UserFollow(models.Model):
-    follower = models.ForeignKey(CustomUser, related_name='following_set', on_delete=models.CASCADE)
-    following = models.ForeignKey(CustomUser, related_name='follower_set', on_delete=models.CASCADE)
-
-    def __str__(self):
-        return f"{self.follower.username} follows {self.following.username}"
     
 class FollowRequest(models.Model):
     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
