@@ -10,4 +10,10 @@ urlpatterns = [
     path('userlist/',UserList.as_view(), name='user-list'),
     path('follower-following/<int:pk>/', FollowerFollowingListAPIView.as_view(), name='follower-following-list'),
 
+    path('forget-password/', ForgetPasswordApiView.as_view(), name="forget-password"),
+
+    path('forgot-password/', ForgotPassword.as_view(), name="forgot-password"),
+    path('reset-password/', ResetPassword.as_view(), name="reset-password"),
+
+
 ]

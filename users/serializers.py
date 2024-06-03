@@ -81,18 +81,11 @@ class UserPasswordChangeSerializer(serializers.ModelSerializer):
         instance.set_password(validated_data["password"])
         instance.save()
         return instance
-    
-class FollowSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomUser
-        fields = ['id', 'username', 'profile_picture']
-
-
 class UserDetailSerializer(serializers.ModelSerializer):
     follower_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
-    followers = FollowSerializer(many=True)
-    following = FollowSerializer(many=True)
+    followers = CustomUserMiniSerializer(many=True)
+    following = CustomUserMiniSerializer(many=True)
 
     class Meta:
         model = CustomUser
@@ -103,3 +96,24 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
     def get_following_count(self, obj):
         return obj.following.count()
+    
+class Forgetpasswordserializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=True,write_only=True)    
+    new_password = serializers.CharField(required=True,write_only=True)
+    confirmed_password = serializers.CharField(required=True,write_only=True)
+  
+
+    class Meta:
+        model=CustomUser
+        fields = ('id', 'new_password', 'confirmed_password','email')
+
+    def validate(self, data):
+
+        if data.get('confirmed_password') != data.get('new_password'):
+            raise serializers.ValidationError({'message': 'Password must be confirmed correctly.'})    
+        return data
+
+    def update(self, instance, validated_data):
+        instance.set_password(validated_data['password'])
+        instance.save()
+        return instance

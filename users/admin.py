@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser
+from users.models import *
 
 class CustomUserAdmin(UserAdmin):
     ordering = ("id",)
@@ -22,4 +22,16 @@ class CustomUserAdmin(UserAdmin):
         }),
     )
 
+class PasswordResetOTPAdmin(admin.ModelAdmin):
+    search_fields = ["user"]
+    list_display = [f.name for f in PasswordResetOTP._meta.fields]
+    # date_hierarchy = "created_at"
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.base_fields["user"].initial = request.user
+        return form
+
 admin.site.register(CustomUser, CustomUserAdmin)
+admin.site.register(PasswordResetOTP, PasswordResetOTPAdmin)
+

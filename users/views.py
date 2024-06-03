@@ -6,7 +6,7 @@ from .models import CustomUser
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from django.contrib.auth import login
 from knox.views import LoginView as KnoxLoginView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,AllowAny
 from rest_framework import permissions, serializers, status
 from rest_framework.generics import CreateAPIView,ListAPIView
 from users.serializers import UserPasswordChangeSerializer
@@ -14,6 +14,8 @@ import django.contrib.auth.password_validation as validators
 from django.core import exceptions
 from users.filters import CustomUserFilter
 from users.serializers import *
+from django.db.models import Q
+from users.utils import *
 
 class CommonLogin(KnoxLoginView):
     """
@@ -22,18 +24,16 @@ class CommonLogin(KnoxLoginView):
     permission_classes = (permissions.AllowAny,)
 
     def post(self, request, *args, **kwargs):
-        number = request.data.get("number")
-        username = request.data.get("username")
-        email = request.data.get("email")
+        identifier = request.data.get("identifier")
         password = request.data.get("password")
         
         user = None
-        if number:
-            user = CustomUser.objects.filter(contact_number__icontains=number).first()
-        elif username:
-            user = CustomUser.objects.filter(username__iexact=username).first()
-        elif email:
-            user = CustomUser.objects.filter(email__iexact=email).first()
+        if identifier:
+            user = CustomUser.objects.filter(
+                Q(contact_number__icontains=identifier) | 
+                Q(username__iexact=identifier) | 
+                Q(email__iexact=identifier)
+            ).first()
         
         if user:
             auth_data = {"username": user.username, "password": password}
@@ -169,3 +169,55 @@ class FollowerFollowingListAPIView(APIView):
         followers = user.followers.all()
         serializer = UserDetailSerializer(followers, many=True)
         return Response(serializer.data)
+class ForgetPasswordApiView(CreateAPIView):
+    queryset = CustomUser.objects.all().order_by('-id') 
+    serializer_class = Forgetpasswordserializer  
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        email = CustomUser.objects.get(username=request.data.get('email', None))
+        new_password = request.data.get('new_password', None)
+        confirmed_password = request.data.get('confirmed_password', None)
+        if  new_password and confirmed_password:
+            if confirmed_password != new_password:
+                return Response({"success": False,"message":"New Password and Confirm Password not Matching."})  
+        
+            email.set_password(new_password)
+            email.save()
+            return Response({"success": True,"message":"Password has been changed successfully."})
+        else:
+            return Response({"success": False,"message":"Please Enter all Password Fields."})
+        
+class ForgotPassword(APIView):
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        otp = generate_otp()
+        PasswordResetOTP.objects.create(user=user, otp=otp)
+
+        send_otp_email(email, otp)
+
+        return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
+
+class ResetPassword(APIView):
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+        new_password = request.data.get('new_password')
+        user = CustomUser.objects.filter(email=email)
+
+        if not verify_otp(user[0].id, otp):
+            return Response({"message": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        reset_password(user[0].id, new_password)
+
+        return Response({"message": "Password reset successfully"}, status=status.HTTP_200_OK)
+        
