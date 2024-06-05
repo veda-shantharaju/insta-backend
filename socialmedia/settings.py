@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'sorl.thumbnail',
     'chat',
     'channels',
+    'notification',
 ]
 
 MIDDLEWARE = [
